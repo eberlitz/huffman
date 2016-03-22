@@ -1,18 +1,8 @@
-import fs = require('fs');
 
-// Le o arquivo
-fs.readFile('sample2.txt', 'ascii', function(error, texto) {
-    // console.log(texto);
-
-    var output = encode(texto);
-    console.log('Encoded: \r\n', output);
-
-    var decoded = decode(output);
-    console.log('Decoded: \r\n', decoded == texto, decoded);
-
-});
-
-function encode(text) {
+/**
+ * Códifica um texto.
+ */
+export function encode(text: string) {
     var frequencias = text.split('').reduce(function(a, b) {
         a[b] = (a[b] || 0) + 1
         return a;
@@ -29,23 +19,40 @@ function encode(text) {
     //console.log(charMap);
     // Bits para caracter
     ////console.log(bitMap);
-
-    var output = JSON.stringify(bitMap) + text.split('').map(function(char) {
+    var ints = text.split('').map(function(char) {
         return charMap[char];
-    }).join('');
+    }).join('').match(/.{1,32}/g).map((chunk) => {
+        if (chunk.length < 32) {
+            parseInt((chunk + '00000000000000000000000000000000').substr(0, 32), 2);
+        }
+        return parseInt(chunk, 2);
+    });
 
-    return new Buffer(output);
+    var buf = new Buffer(ints.length * 4);
+    ints.reduce((position, value) => {
+        return buf.writeUInt32BE(value, position);
+    }, 0);
+    var bitMapString = new Buffer(JSON.stringify(bitMap));
+    var size = new Buffer(4);
+    size.writeUInt32BE(bitMapString.length, 0);
+    return Buffer.concat([size, bitMapString, buf]);
 }
 
-
-function decode(buffer: Buffer) {
-    var text = buffer.toString('utf8');
-    var endOfTree = text.lastIndexOf('}');
-    var bitMap = JSON.parse(text.substring(0, endOfTree + 1));
-    text = text.substring(endOfTree + 1);
-
+/**
+ * Decodifica a partir de um buffer 
+ */
+export function decode(buffer: Buffer) {
+    var size = buffer.readUInt32BE(0);
+    var text = buffer.slice(4, size + 4).toString('utf8');
+    var encodedBuffer = buffer.slice(size + 4, buffer.length);
+    var bitMap = JSON.parse(text);
+    var values = [];
+    for (var i = 0; i < encodedBuffer.length; i += 4) {
+        let value = encodedBuffer.readUInt32BE(i).toString(2);
+        values.push(('00000000000000000000000000000000' + value).substr(value.length, 32));
+    }
     var result = [];
-    text.split('').reduce(function(buffer, bit) {
+    values.join('').split('').reduce(function(buffer, bit) {
         buffer.push(bit);
         var char = bitMap[buffer.join('')];
         if (char) {
@@ -54,6 +61,7 @@ function decode(buffer: Buffer) {
         }
         return buffer;
     }, []);
+
     return result.join('');
 }
 
@@ -88,7 +96,6 @@ function buildTree(freqObj) {
     return removeFreq(tree);
 }
 
-
 function frequencySorter(a, b) {
     if (a[0] > b[0]) {
         return 1;
@@ -112,13 +119,14 @@ function createMapTables(tree) {
                 walk(a, path + i.toString());
             });
         } else {
-            // is Leaf
             charMap[val] = path.toString();
             bitMap[path.toString()] = val;
         }
     }
-
     walk(tree);
-
     return [charMap, bitMap];
 }
+
+
+
+

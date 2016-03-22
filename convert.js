@@ -1,7 +1,6 @@
 var encoding = require("encoding");
 var fs = require("fs");
 
-
 var fileName = process.argv[2] || 'sample2.txt';
 
 
@@ -16,8 +15,6 @@ fs.readFile(fileName, function(error, data) {
 
     });
 });
-
-
 
 function getFilesizeInBytes(filename) {
     var stats = fs.statSync(filename)

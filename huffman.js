@@ -1,11 +1,4 @@
 "use strict";
-var fs = require('fs');
-fs.readFile('sample2.txt', 'ascii', function (error, texto) {
-    var output = encode(texto);
-    console.log('Encoded: \r\n', output);
-    var decoded = decode(output);
-    console.log('Decoded: \r\n', decoded == texto, decoded);
-});
 function encode(text) {
     var frequencias = text.split('').reduce(function (a, b) {
         a[b] = (a[b] || 0) + 1;
@@ -15,18 +8,36 @@ function encode(text) {
     var maps = createMapTables(tree);
     var charMap = maps[0];
     var bitMap = maps[1];
-    var output = JSON.stringify(bitMap) + text.split('').map(function (char) {
+    var ints = text.split('').map(function (char) {
         return charMap[char];
-    }).join('');
-    return new Buffer(output);
+    }).join('').match(/.{1,32}/g).map(function (chunk) {
+        if (chunk.length < 32) {
+            parseInt((chunk + '00000000000000000000000000000000').substr(0, 32), 2);
+        }
+        return parseInt(chunk, 2);
+    });
+    var buf = new Buffer(ints.length * 4);
+    ints.reduce(function (position, value) {
+        return buf.writeUInt32BE(value, position);
+    }, 0);
+    var bitMapString = new Buffer(JSON.stringify(bitMap));
+    var size = new Buffer(4);
+    size.writeUInt32BE(bitMapString.length, 0);
+    return Buffer.concat([size, bitMapString, buf]);
 }
+exports.encode = encode;
 function decode(buffer) {
-    var text = buffer.toString('utf8');
-    var endOfTree = text.lastIndexOf('}');
-    var bitMap = JSON.parse(text.substring(0, endOfTree + 1));
-    text = text.substring(endOfTree + 1);
+    var size = buffer.readUInt32BE(0);
+    var text = buffer.slice(4, size + 4).toString('utf8');
+    var encodedBuffer = buffer.slice(size + 4, buffer.length);
+    var bitMap = JSON.parse(text);
+    var values = [];
+    for (var i = 0; i < encodedBuffer.length; i += 4) {
+        var value = encodedBuffer.readUInt32BE(i).toString(2);
+        values.push(('00000000000000000000000000000000' + value).substr(value.length, 32));
+    }
     var result = [];
-    text.split('').reduce(function (buffer, bit) {
+    values.join('').split('').reduce(function (buffer, bit) {
         buffer.push(bit);
         var char = bitMap[buffer.join('')];
         if (char) {
@@ -37,6 +48,7 @@ function decode(buffer) {
     }, []);
     return result.join('');
 }
+exports.decode = decode;
 function buildTree(freqObj) {
     var table = Object.keys(freqObj).map(function (char) {
         return [freqObj[char], char];
@@ -93,4 +105,4 @@ function createMapTables(tree) {
     walk(tree);
     return [charMap, bitMap];
 }
-//# sourceMappingURL=teste.js.map
+//# sourceMappingURL=huffman.js.map
