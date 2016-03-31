@@ -1,4 +1,5 @@
 "use strict";
+var tree_1 = require('./tree');
 function encode(text) {
     var frequencias = text.split('').reduce(function (a, b) {
         a[b] = (a[b] || 0) + 1;
@@ -22,19 +23,19 @@ function encode(text) {
     ints.reduce(function (position, value) {
         return buf.writeUInt32BE(value, position);
     }, 0);
-    var bitMapString = new Buffer(JSON.stringify(bitMap));
-    var size = new Buffer(5);
+    var treeBuffer = tree.toBuffer();
+    var size = new Buffer(3);
     size.writeInt8(lastBits, 0);
-    size.writeUInt32BE(bitMapString.length, 1);
-    return Buffer.concat([size, bitMapString, buf]);
+    size.writeUInt16BE(treeBuffer.length, 1);
+    return Buffer.concat([size, treeBuffer, buf]);
 }
 exports.encode = encode;
 function decode(buffer) {
     var lastBits = buffer.readInt8(0);
-    var size = buffer.readUInt32BE(1);
-    var text = buffer.slice(5, size + 5).toString('utf8');
-    var encodedBuffer = buffer.slice(size + 5, buffer.length);
-    var bitMap = JSON.parse(text);
+    var size = buffer.readUInt16BE(1);
+    var treeBuffer = tree_1.TreeNode.fromBuffer(buffer.slice(3, size + 3));
+    var encodedBuffer = buffer.slice(size + 3, buffer.length);
+    var bitMap = createMapTables(treeBuffer)[1];
     var values = [];
     for (var i = 0; i < encodedBuffer.length; i += 4) {
         var value = encodedBuffer.readUInt32BE(i).toString(2);
@@ -58,7 +59,7 @@ function decode(buffer) {
 exports.decode = decode;
 function buildTree(freqObj) {
     var table = Object.keys(freqObj).map(function (char) {
-        return [freqObj[char], char];
+        return [freqObj[char], char.charCodeAt(0)];
     }).sort(frequencySorter);
     var first, second;
     while (table.length > 1) {
@@ -72,10 +73,10 @@ function buildTree(freqObj) {
         var value;
         value = table[1];
         if (Array.isArray(value)) {
-            return [removeFreq(value[0]), removeFreq(value[1])];
+            return new tree_1.TreeNode(0, removeFreq(value[0]), removeFreq(value[1]));
         }
         else {
-            return value;
+            return new tree_1.TreeNode(value, null, null);
         }
     }
     ;
@@ -97,19 +98,19 @@ function frequencySorter(a, b) {
 function createMapTables(tree) {
     var charMap = {};
     var bitMap = {};
-    function walk(val, path) {
+    function WalkNode(node, path) {
         path = path || '';
-        if (Array.isArray(val)) {
-            val.forEach(function (a, i) {
-                walk(a, path + i.toString());
-            });
-        }
-        else {
+        if (node.IsLeafNode()) {
+            var val = String.fromCharCode(node.Value);
             charMap[val] = path.toString();
             bitMap[path.toString()] = val;
         }
+        else {
+            WalkNode(node.LeftChild, path + '0');
+            WalkNode(node.RightChild, path + '1');
+        }
     }
-    walk(tree);
+    WalkNode(tree);
     return [charMap, bitMap];
 }
 //# sourceMappingURL=huffman.js.map

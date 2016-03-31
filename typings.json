@@ -1,0 +1,6 @@
+{
+  "ambientDevDependencies": {
+    "bson": "registry:dt/bson#0.4.21+20160317120654",
+    "node": "registry:dt/node#4.0.0+20160330064709"
+  }
+}

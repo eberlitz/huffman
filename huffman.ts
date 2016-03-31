@@ -1,3 +1,4 @@
+import {TreeNode} from './tree';
 
 /**
  * Códifica um texto.
@@ -13,15 +14,14 @@ export function encode(text: string) {
     //console.log(JSON.stringify(tree, null, 4));
     var maps = createMapTables(tree);
     var charMap = maps[0];
-    var bitMap = maps[1];
+    var bitMap: {} = maps[1];
 
     // caracter para bits
-    //console.log(charMap);
+    // console.log(charMap);
     // Bits para caracter
     ////console.log(bitMap);
 
     var lastBits = 0;
-
     var ints = text.split('').map(function(char) {
         return charMap[char];
     }).join('').match(/.{1,32}/g).map((chunk) => {
@@ -32,15 +32,28 @@ export function encode(text: string) {
         return parseInt(chunk, 2);
     });
 
+
     var buf = new Buffer(ints.length * 4);
     ints.reduce((position, value) => {
         return buf.writeUInt32BE(value, position);
     }, 0);
-    var bitMapString = new Buffer(JSON.stringify(bitMap));
-    var size = new Buffer(5);
+
+
+    //console.log(JSON.stringify(tree));
+
+    //http://stackoverflow.com/questions/759707/efficient-way-of-storing-huffman-tree
+
+
+    var treeBuffer = tree.toBuffer();
+    var size = new Buffer(3);
     size.writeInt8(lastBits, 0);
-    size.writeUInt32BE(bitMapString.length, 1);
-    return Buffer.concat([size, bitMapString, buf]);
+    size.writeUInt16BE(treeBuffer.length, 1);
+    return Buffer.concat([size, treeBuffer, buf]);
+    // var bitMapString = new Buffer(JSON.stringify(bitMap));
+    // var size = new Buffer(5);
+    // size.writeInt8(lastBits, 0);
+    // size.writeUInt32BE(bitMapString.length, 1);
+    // return Buffer.concat([size, bitMapString, buf]);
 }
 
 /**
@@ -48,10 +61,11 @@ export function encode(text: string) {
  */
 export function decode(buffer: Buffer) {
     var lastBits = buffer.readInt8(0);
-    var size = buffer.readUInt32BE(1);
-    var text = buffer.slice(5, size + 5).toString('utf8');
-    var encodedBuffer = buffer.slice(size + 5, buffer.length);
-    var bitMap = JSON.parse(text);
+    var size = buffer.readUInt16BE(1);
+    var treeBuffer = TreeNode.fromBuffer(buffer.slice(3, size + 3));
+    var encodedBuffer = buffer.slice(size + 3, buffer.length);
+    var bitMap = createMapTables(treeBuffer)[1];
+    //console.log(bitMap);
     var values = [];
     for (var i = 0; i < encodedBuffer.length; i += 4) {
         let value = encodedBuffer.readUInt32BE(i).toString(2);
@@ -78,10 +92,10 @@ export function decode(buffer: Buffer) {
 }
 
 
-function buildTree(freqObj) {
+function buildTree(freqObj): TreeNode {
     // formata as frequencias em uma "tabela" de frequencias
     var table = Object.keys(freqObj).map(function(char) {
-        return [freqObj[char], char];
+        return [freqObj[char], char.charCodeAt(0)];
     }).sort(frequencySorter);
     //console.log('\r\nFreqs:\r\n', table);
 
@@ -100,9 +114,9 @@ function buildTree(freqObj) {
         var value;
         value = table[1];
         if (Array.isArray(value)) {
-            return [removeFreq(value[0]), removeFreq(value[1])];
+            return new TreeNode(0, removeFreq(value[0]), removeFreq(value[1]));
         } else {
-            return value;
+            return new TreeNode(value, null, null);
         }
     };
     return removeFreq(tree);
@@ -120,24 +134,40 @@ function frequencySorter(a, b) {
     }
 }
 
-function createMapTables(tree) {
+function createMapTables(tree: TreeNode) {
     var charMap = {};
     var bitMap = {};
 
-    function walk(val, path?) {
+    // function walk(val: TreeNode, path?) {
+    //     path = path || '';
+    //     if (Array.isArray(val)) {
+    //         val.forEach(function(a, i) {
+    //             walk(a, path + i.toString());
+    //         });
+    //     } else {
+    //         val = String.fromCharCode(val);
+    //         charMap[val] = path.toString();
+    //         bitMap[path.toString()] = val;
+    //     }
+    // }
+    function WalkNode(node: TreeNode, path?: string) {
         path = path || '';
-        if (Array.isArray(val)) {
-            val.forEach(function(a, i) {
-                walk(a, path + i.toString());
-            });
-        } else {
+        if (node.IsLeafNode()) {
+            let val = String.fromCharCode(node.Value);
             charMap[val] = path.toString();
             bitMap[path.toString()] = val;
         }
+        else {
+            WalkNode(node.LeftChild, path + '0');
+            WalkNode(node.RightChild, path + '1');
+        }
     }
-    walk(tree);
+    WalkNode(tree);
     return [charMap, bitMap];
 }
+
+
+
 
 
 
