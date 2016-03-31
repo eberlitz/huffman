@@ -8,11 +8,13 @@ function encode(text) {
     var maps = createMapTables(tree);
     var charMap = maps[0];
     var bitMap = maps[1];
+    var lastBits = 0;
     var ints = text.split('').map(function (char) {
         return charMap[char];
     }).join('').match(/.{1,32}/g).map(function (chunk) {
         if (chunk.length < 32) {
-            parseInt((chunk + '00000000000000000000000000000000').substr(0, 32), 2);
+            lastBits = chunk.length;
+            return parseInt((chunk + '00000000000000000000000000000000').substr(0, 32), 2);
         }
         return parseInt(chunk, 2);
     });
@@ -21,20 +23,25 @@ function encode(text) {
         return buf.writeUInt32BE(value, position);
     }, 0);
     var bitMapString = new Buffer(JSON.stringify(bitMap));
-    var size = new Buffer(4);
-    size.writeUInt32BE(bitMapString.length, 0);
+    var size = new Buffer(5);
+    size.writeInt8(lastBits, 0);
+    size.writeUInt32BE(bitMapString.length, 1);
     return Buffer.concat([size, bitMapString, buf]);
 }
 exports.encode = encode;
 function decode(buffer) {
-    var size = buffer.readUInt32BE(0);
-    var text = buffer.slice(4, size + 4).toString('utf8');
-    var encodedBuffer = buffer.slice(size + 4, buffer.length);
+    var lastBits = buffer.readInt8(0);
+    var size = buffer.readUInt32BE(1);
+    var text = buffer.slice(5, size + 5).toString('utf8');
+    var encodedBuffer = buffer.slice(size + 5, buffer.length);
     var bitMap = JSON.parse(text);
     var values = [];
     for (var i = 0; i < encodedBuffer.length; i += 4) {
         var value = encodedBuffer.readUInt32BE(i).toString(2);
         values.push(('00000000000000000000000000000000' + value).substr(value.length, 32));
+    }
+    if (lastBits < 32) {
+        values[values.length - 1] = values[values.length - 1].substr(0, lastBits);
     }
     var result = [];
     values.join('').split('').reduce(function (buffer, bit) {
