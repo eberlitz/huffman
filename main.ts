@@ -1,32 +1,36 @@
-"use strict";
-var fs = require('fs');
-var Huffman = require('./huffman');
+import fs = require('fs');
+import Huffman = require('./huffman');
+
+// node main.js sample2.txt >> .data
+// node main.js .data --decode >> decoded.txt
+
 var fileName = process.argv[2];
 var isTest = process.argv[3] === '--test';
 var isDecode = process.argv[3] === '--decode';
+
 if (isTest) {
-    fs.readFile(fileName, function (error, buffer) {
-        var originalFileSize = buffer.length;
-        var originalFileString = buffer.toString('ascii');
+    fs.readFile(fileName, function(error, buffer) {
+        let originalFileSize = buffer.length;
+        let originalFileString = buffer.toString('ascii');
+
         var encodedBuffer = Huffman.encode(originalFileString);
-        var compressedFileSize = encodedBuffer.length;
+        let compressedFileSize = encodedBuffer.length;
+
         var decodedString = Huffman.decode(encodedBuffer);
+
         console.log(fileName, ':', originalFileSize, ' bytes');
         console.log('encoded', ':', compressedFileSize, ' bytes');
         console.log('decoded == original:', decodedString === originalFileString);
         console.log('Tamanho do arquivo após códificação:', (100 * compressedFileSize) / originalFileSize, '%');
     });
-}
-else if (isDecode) {
-    fs.readFile(fileName, function (error, data) {
+} else if (isDecode) {
+    fs.readFile(fileName, function(error, data) {
         var decodedBuffer = Huffman.decode(data);
         process.stdout.write(decodedBuffer);
     });
-}
-else {
-    fs.readFile(fileName, 'ascii', function (error, texto) {
+} else {
+    fs.readFile(fileName, 'ascii', function(error, texto) {
         var encodedBuffer = Huffman.encode(texto);
         process.stdout.write(encodedBuffer);
     });
 }
-//# sourceMappingURL=main.js.map
