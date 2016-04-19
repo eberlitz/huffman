@@ -1,6 +1,6 @@
 "use strict";
 var fs = require('fs');
-var Huffman = require('./huffman');
+var Huffman = require('./lib/huffman');
 var fileName = process.argv[2];
 var isTest = process.argv[3] === '--test';
 var isDecode = process.argv[3] === '--decode';
@@ -19,14 +19,24 @@ if (isTest) {
 }
 else if (isDecode) {
     fs.readFile(fileName, function (error, data) {
-        var decodedBuffer = Huffman.decode(data);
-        process.stdout.write(decodedBuffer);
+        if (error) {
+            throw error;
+        }
+        else {
+            var decodedBuffer = Huffman.decode(data);
+            process.stdout.write(decodedBuffer);
+        }
     });
 }
 else {
     fs.readFile(fileName, 'ascii', function (error, texto) {
-        var encodedBuffer = Huffman.encode(texto);
-        process.stdout.write(encodedBuffer);
+        if (error) {
+            throw error;
+        }
+        else {
+            var encodedBuffer = Huffman.encode(texto);
+            process.stdout.write(encodedBuffer);
+        }
     });
 }
 //# sourceMappingURL=main.js.map
